@@ -96,7 +96,8 @@ def get_posts(api, hashtag, config):
 	try:
 		feed = []
 		try:
-			results = api.feed_tag(hashtag, min_timestamp=config['min_timestamp'])
+			uuid = api.generate_uuid(return_hex=False, seed='0')
+			results = api.feed_tag(hashtag, rank_token=uuid, min_timestamp=config['min_timestamp'])
 		except Exception as e:
 			print('exception while getting feed1')
 			raise e
@@ -108,7 +109,7 @@ def get_posts(api, hashtag, config):
 		while next_max_id and len(feed) < config['max_collect_media']:
 			print("next_max_id", next_max_id, "len(feed) < max_collect_media", len(feed) < config['max_collect_media'] , len(feed))
 			try:
-				results = api.feed_tag(hashtag, max_id=next_max_id)
+				results = api.feed_tag(hashtag, rank_token=uuid, max_id=next_max_id)
 			except Exception as e:
 				print('exception while getting feed2')
 				if str(e) == 'Bad Request: Please wait a few minutes before you try again.':
