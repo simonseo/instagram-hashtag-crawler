@@ -13,6 +13,7 @@ from time import time
 from collections import deque
 from util import file_to_list
 from crawler import crawl
+import pathlib
 try:
 	from instagram_private_api import (
 		Client, __version__ as client_version)
@@ -37,7 +38,7 @@ if __name__ == '__main__':
 		'search_algorithm' : 'BFS',               # Possible values: BFS, DFS
 		'profile_path' : './hashtags',              # Path where output data gets saved
 		'min_collect_media' : 1,                # how many media items to be collected per person/hashtag. If time is specified, this is ignored
-		'max_collect_media' : 2000,                # how many media items to be collected per person/hashtag. If time is specified, this is ignored
+		'max_collect_media' : 100,                # how many media items to be collected per person/hashtag. If time is specified, this is ignored
 		# 'min_timestamp' : int(time() - 60*60*24*30*2)         # up to how recent you want the posts to be in seconds. If you do not want to use this, put None as value
 		'min_timestamp' : None
 	}
@@ -59,6 +60,7 @@ if __name__ == '__main__':
 
 	try:
 		# jobs = []
+		pathlib.Path(config['profile_path']).mkdir(parents=True, exist_ok=True) 
 		for origin in origin_names:
 			crawl(api, origin, config)
 			# p = mp.Process(target=crawl, args=(api, origin, config))
@@ -68,7 +70,6 @@ if __name__ == '__main__':
 		print('Jobs terminated')
 	except Exception as e:
 		raise e
-		print(e)
 	# for p in jobs:
 	# 	p.join()
 

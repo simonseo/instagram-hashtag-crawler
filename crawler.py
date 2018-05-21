@@ -19,6 +19,8 @@ def visit_profile(api, hashtag, config):
 				'posts' : []
 			}
 			feed = get_posts(api, hashtag, config)
+			with open(config['profile_path'] + os.sep + str(hashtag) + '_rawfeed.json', 'w') as outfile:
+					json.dump(feed, outfile, indent=2)
 			profile_dic = {}
 			posts = [beautify_post(api, post, profile_dic) for post in feed]
 			posts = list(filter(lambda x: not x is None, posts))
@@ -34,8 +36,8 @@ def visit_profile(api, hashtag, config):
 				raise e
 
 			try:
-				with open(config['profile_path'] + os.sep + str(hashtag) + '.json', 'w') as file:
-					json.dump(processed_tagfeed, file, indent=2)
+				with open(config['profile_path'] + os.sep + str(hashtag) + '.json', 'w') as outfile:
+					json.dump(processed_tagfeed, outfile, indent=2)
 			except Exception as e:
 				print('exception while dumping')
 				raise e
