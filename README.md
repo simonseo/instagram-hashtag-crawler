@@ -1,4 +1,6 @@
 # Instagram Hashtag Crawler
+[![HitCount](http://hits.dwyl.io/simonseo/instagram-hashtag-crawler.svg)](http://hits.dwyl.io/simonseo/instagram-hashtag-crawler)
+
 This crawler was made because most of the crawlers out there seems to either require a browser or a developer account. This Instagram crawler utilizes a private API of Instagram and thus no developer account is required.
 
 Refer to a similar script I wrote. It might be more helpful in terms of documentation: [simonseo/instacrawler-privateapi](https://github.com/simonseo/instagram-hashtag-crawler)
