@@ -10,10 +10,16 @@ Uses [instaloader](https://instaloader.github.io/) under the hood.
 pip install .
 ```
 
+With browser cookie support (auto-extract session from Chrome, Firefox, etc.):
+
+```bash
+pip install ".[browser]"
+```
+
 For development:
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,browser]"
 ```
 
 ## Usage
@@ -21,17 +27,24 @@ pip install -e ".[dev]"
 ### Crawl hashtags
 
 ```bash
-# Single hashtag
+# Using browser cookies (recommended — auto-extracts session from your browser)
+instagram-hashtag-crawler --browser chrome -t foodporn
+
+# If logged in on a non-default Chrome profile, specify the cookie file
+instagram-hashtag-crawler --browser chrome \
+    --cookie-file ~/Library/Application\ Support/Google/Chrome/Profile\ 1/Cookies \
+    -t foodporn
+
+# Using username/password
 instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t foodporn
 
 # Multiple hashtags from a file
-instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -f targets.txt
+instagram-hashtag-crawler --browser chrome -f targets.txt
 
 # With options
-instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t foodporn \
+instagram-hashtag-crawler --browser chrome -t foodporn \
     --max-posts 500 \
     --output-dir ./data \
-    --session-file session.dat \
     -v
 ```
 
@@ -41,10 +54,10 @@ Pass `-t` multiple times to find posts that contain **all** specified hashtags:
 
 ```bash
 # Posts tagged with BOTH #foodporn AND #pizza
-instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t foodporn -t pizza
+instagram-hashtag-crawler --browser chrome -t foodporn -t pizza
 
 # Three-way AND
-instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t food -t pizza -t italy
+instagram-hashtag-crawler --browser chrome -t food -t pizza -t italy
 ```
 
 Output is saved as `food_AND_pizza.json` (tags sorted alphabetically, joined by `_AND_`).
@@ -52,7 +65,7 @@ Output is saved as `food_AND_pizza.json` (tags sorted alphabetically, joined by 
 You can also run it as a module:
 
 ```bash
-python -m instagram_hashtag_crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t foodporn
+python -m instagram_hashtag_crawler --browser chrome -t foodporn
 ```
 
 ### Export to CSV
@@ -65,15 +78,17 @@ instagram-hashtag-export --json-dir ./hashtags --csv-dir ./output
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-u`, `--username` | Instagram username | (required) |
-| `-p`, `--password` | Instagram password | (required) |
+| `--browser` | Auto-extract session from browser (chrome, firefox, safari, edge, brave, etc.) | — |
+| `--cookie-file` | Path to browser cookie file (for non-default profiles) | — |
+| `-u`, `--username` | Instagram username (not needed with `--browser`) | — |
+| `-p`, `--password` | Instagram password (not needed with `--browser`) | — |
 | `-t`, `--target` | Hashtag to crawl (without `#`). Repeat for AND search. | — |
 | `-f`, `--targetfile` | File with hashtags, one per line | — |
 | `--output-dir` | Directory for JSON output | `./hashtags` |
 | `--max-posts` | Max posts per hashtag | `100` |
 | `--min-posts` | Min posts required | `1` |
 | `--since` | Unix timestamp — only collect newer posts | — |
-| `--session-file` | Path to save/load session | — |
+| `--session-file` | Path to save/load session (with `-u`/`-p`) | — |
 | `-v`, `--verbose` | Debug logging | off |
 
 ### Target file format
@@ -105,7 +120,7 @@ Each JSON file contains an array of post objects with fields like `shortcode`, `
 
 ```bash
 # Install dev dependencies
-pip install -e ".[dev]"
+pip install -e ".[dev,browser]"
 
 # Lint
 ruff check src/ tests/

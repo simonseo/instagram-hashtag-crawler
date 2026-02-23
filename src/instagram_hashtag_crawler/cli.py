@@ -18,8 +18,41 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         prog="instagram-hashtag-crawler",
         description="Crawl Instagram hashtags and collect post metadata.",
     )
-    parser.add_argument("-u", "--username", required=True, help="Instagram username")
-    parser.add_argument("-p", "--password", required=True, help="Instagram password")
+
+    # Authentication — either --browser or -u/-p
+    auth = parser.add_argument_group("authentication")
+    auth.add_argument(
+        "-u",
+        "--username",
+        default=None,
+        help="Instagram username (not needed with --browser)",
+    )
+    auth.add_argument(
+        "-p",
+        "--password",
+        default=None,
+        help="Instagram password (not needed with --browser)",
+    )
+    auth.add_argument(
+        "--browser",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Auto-extract Instagram session from a browser. "
+            "Supported: chrome, firefox, safari, edge, opera, brave, chromium, vivaldi. "
+            "Requires pip install instagram-hashtag-crawler[browser]"
+        ),
+    )
+    auth.add_argument(
+        "--cookie-file",
+        default=None,
+        help=(
+            "Path to browser cookie database file. Use with --browser when the "
+            "logged-in session is in a non-default profile (e.g. Chrome Profile 1)."
+        ),
+    )
+
+    # Targets
     parser.add_argument(
         "-t",
         "--target",
@@ -65,7 +98,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Path to save/load login session file",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
-    return parser.parse_args(argv)
+
+    args = parser.parse_args(argv)
+
+    # Validate: need either --browser or both -u and -p
+    if args.browser is None and (args.username is None or args.password is None):
+        parser.error("Provide --browser, or both -u/--username and -p/--password")
+
+    return args
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -113,6 +153,25 @@ def _login(
     logger.info("Session saved")
 
 
+def _login_browser(
+    loader: instaloader.Instaloader,
+    browser: str,
+    cookie_file: str | None = None,
+) -> None:
+    from instagram_hashtag_crawler.browser_session import load_browser_session
+
+    user_id = load_browser_session(loader, browser, cookie_file=cookie_file)
+    logged_in = loader.test_login()
+    if logged_in:
+        logger.info("Browser session verified — logged in as %s", logged_in)
+    else:
+        logger.warning(
+            "Browser session loaded (user_id=%s) but test_login did not confirm. "
+            "The session may still work for hashtag queries.",
+            user_id,
+        )
+
+
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
     _setup_logging(args.verbose)
@@ -146,14 +205,21 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     try:
-        _login(loader, args.username, args.password, args.session_file)
+        if args.browser:
+            _login_browser(loader, args.browser, cookie_file=args.cookie_file)
+        else:
+            _login(loader, args.username, args.password, args.session_file)
     except instaloader.InvalidArgumentException as exc:
         logger.error("Login failed: %s", exc)
         sys.exit(1)
     except instaloader.TwoFactorAuthRequiredException:
         logger.error(
-            "Two-factor auth required. Use --session-file with a pre-authenticated session."
+            "Two-factor auth required. Use --browser or --session-file "
+            "with a pre-authenticated session."
         )
+        sys.exit(1)
+    except RuntimeError as exc:
+        logger.error("%s", exc)
         sys.exit(1)
 
     # Build config

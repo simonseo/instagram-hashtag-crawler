@@ -22,6 +22,9 @@ dev = [
     "ruff>=0.4",
     "pre-commit>=3.0",
 ]
+browser = [
+    "browser_cookie3>=0.19",
+]
 
 [project.scripts]
 instagram-hashtag-crawler = "instagram_hashtag_crawler.cli:main"
