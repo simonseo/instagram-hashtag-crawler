@@ -1,0 +1,272 @@
+from __future__ import annotations
+
+import argparse
+import logging
+import sys
+from pathlib import Path
+
+import instaloader
+
+from instagram_hashtag_crawler.crawler import CrawlConfig, crawl, crawl_multi_and
+from instagram_hashtag_crawler.utils import file_to_list
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="instagram-hashtag-crawler",
+        description="Crawl Instagram hashtags and collect post metadata.",
+    )
+
+    # Authentication — either --browser or -u/-p
+    auth = parser.add_argument_group("authentication")
+    auth.add_argument(
+        "-u",
+        "--username",
+        default=None,
+        help="Instagram username (not needed with --browser)",
+    )
+    auth.add_argument(
+        "-p",
+        "--password",
+        default=None,
+        help="Instagram password (not needed with --browser)",
+    )
+    auth.add_argument(
+        "--browser",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Auto-extract Instagram session from a browser. "
+            "Supported: chrome, firefox, safari, edge, opera, brave, chromium, vivaldi. "
+            "Requires pip install instagram-hashtag-crawler[browser]"
+        ),
+    )
+    auth.add_argument(
+        "--cookie-file",
+        default=None,
+        help=(
+            "Path to browser cookie database file. Use with --browser when the "
+            "logged-in session is in a non-default profile (e.g. Chrome Profile 1)."
+        ),
+    )
+
+    # Targets
+    parser.add_argument(
+        "-t",
+        "--target",
+        action="append",
+        default=None,
+        dest="targets",
+        help=(
+            "Hashtag to crawl (without #). Can be specified multiple times "
+            "for AND search: -t foodporn -t pizza finds posts with BOTH tags."
+        ),
+    )
+    parser.add_argument(
+        "-f",
+        "--targetfile",
+        help="Path to file with hashtags (one per line) — crawls each independently",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="./hashtags",
+        help="Directory for output data (default: ./hashtags)",
+    )
+    parser.add_argument(
+        "--max-posts",
+        type=int,
+        default=100,
+        help="Maximum posts to collect per hashtag (default: 100)",
+    )
+    parser.add_argument(
+        "--min-posts",
+        type=int,
+        default=1,
+        help="Minimum posts required per hashtag (default: 1)",
+    )
+    parser.add_argument(
+        "--since",
+        type=int,
+        default=None,
+        help="Unix timestamp — only collect posts newer than this",
+    )
+    parser.add_argument(
+        "--session-file",
+        default=None,
+        help="Path to save/load login session file",
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
+
+    args = parser.parse_args(argv)
+
+    # Validate: need either --browser or both -u and -p
+    if args.browser is None and (args.username is None or args.password is None):
+        parser.error("Provide --browser, or both -u/--username and -p/--password")
+
+    return args
+
+
+def _setup_logging(verbose: bool) -> None:
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+
+def _login(
+    loader: instaloader.Instaloader,
+    username: str,
+    password: str,
+    session_file: str | None,
+) -> None:
+    """Attempt session restore, fall back to username/password login."""
+    if session_file:
+        try:
+            loader.load_session_from_file(username, filename=session_file)
+            if loader.test_login() == username:
+                logger.info("Restored session from %s", session_file)
+                return
+        except FileNotFoundError:
+            logger.debug("No session file at %s, will login fresh", session_file)
+
+    # Try default session location
+    try:
+        loader.load_session_from_file(username)
+        if loader.test_login() == username:
+            logger.info("Restored session for %s", username)
+            return
+    except FileNotFoundError:
+        logger.debug("No default session file found")
+
+    logger.info("Logging in as %s", username)
+    loader.login(username, password)
+
+    # Save session for next time
+    if session_file:
+        loader.save_session_to_file(filename=session_file)
+    else:
+        loader.save_session_to_file()
+    logger.info("Session saved")
+
+
+def _login_browser(
+    loader: instaloader.Instaloader,
+    browser: str,
+    cookie_file: str | None = None,
+) -> None:
+    from instagram_hashtag_crawler.browser_session import load_browser_session
+
+    user_id = load_browser_session(loader, browser, cookie_file=cookie_file)
+    logged_in = loader.test_login()
+    if logged_in:
+        logger.info("Browser session verified — logged in as %s", logged_in)
+    else:
+        logger.warning(
+            "Browser session loaded (user_id=%s) but test_login did not confirm. "
+            "The session may still work for hashtag queries.",
+            user_id,
+        )
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = _parse_args(argv)
+    _setup_logging(args.verbose)
+
+    # Resolve targets
+    multi_and = False
+    if args.targets:
+        hashtags = args.targets
+        if len(hashtags) > 1:
+            multi_and = True
+    elif args.targetfile:
+        hashtags = file_to_list(args.targetfile)
+    else:
+        logger.error("Provide a hashtag with -t or a file of hashtags with -f")
+        sys.exit(1)
+
+    if multi_and:
+        logger.info("AND search for: %s", " + ".join(f"#{h}" for h in hashtags))
+    else:
+        logger.info("Targets: %s", hashtags)
+
+    # Initialize instaloader and login
+    loader = instaloader.Instaloader(
+        download_pictures=False,
+        download_videos=False,
+        download_video_thumbnails=False,
+        download_geotags=False,
+        download_comments=False,
+        save_metadata=False,
+        compress_json=False,
+    )
+
+    try:
+        if args.browser:
+            _login_browser(loader, args.browser, cookie_file=args.cookie_file)
+        else:
+            _login(loader, args.username, args.password, args.session_file)
+    except instaloader.InvalidArgumentException as exc:
+        logger.error("Login failed: %s", exc)
+        sys.exit(1)
+    except instaloader.TwoFactorAuthRequiredException:
+        logger.error(
+            "Two-factor auth required. Use --browser or --session-file "
+            "with a pre-authenticated session."
+        )
+        sys.exit(1)
+    except RuntimeError as exc:
+        logger.error("%s", exc)
+        sys.exit(1)
+
+    # Build config
+    from datetime import datetime, timezone
+
+    min_ts = None
+    if args.since is not None:
+        min_ts = datetime.fromtimestamp(args.since, tz=timezone.utc)
+
+    config = CrawlConfig(
+        output_dir=Path(args.output_dir),
+        min_posts=args.min_posts,
+        max_posts=args.max_posts,
+        min_timestamp=min_ts,
+    )
+
+    config.output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Multi-tag AND search
+    if multi_and:
+        try:
+            success = crawl_multi_and(loader, hashtags, config)
+            if success:
+                logger.info(
+                    "Finished AND search for %s",
+                    " + ".join(f"#{h}" for h in hashtags),
+                )
+            else:
+                logger.warning("Insufficient posts matching all tags")
+        except KeyboardInterrupt:
+            logger.info("Interrupted by user")
+            sys.exit(130)
+        except instaloader.QueryReturnedNotFoundException as exc:
+            logger.warning("Hashtag not found: %s", exc)
+        return
+
+    # Single-tag or file-based independent crawls
+    for hashtag in hashtags:
+        logger.info("Crawling #%s", hashtag)
+        try:
+            success = crawl(loader, hashtag, config)
+            if success:
+                logger.info("Finished #%s", hashtag)
+            else:
+                logger.warning("Insufficient posts for #%s", hashtag)
+        except KeyboardInterrupt:
+            logger.info("Interrupted by user")
+            sys.exit(130)
+        except instaloader.QueryReturnedNotFoundException:
+            logger.warning("Hashtag #%s not found, skipping", hashtag)

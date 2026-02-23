@@ -1,35 +1,143 @@
 # Instagram Hashtag Crawler
-[![HitCount](http://hits.dwyl.io/simonseo/instagram-hashtag-crawler.svg)](http://hits.dwyl.io/simonseo/instagram-hashtag-crawler)
 
-This crawler was made because most of the crawlers out there seems to either require a browser or a developer account. This Instagram crawler utilizes a private API of Instagram and thus no developer account is required.
+Crawl Instagram hashtags and collect post metadata (likes, comments, captions, user profiles) without a developer account.
 
-Refer to a similar script I wrote. It might be more helpful in terms of documentation: [simonseo/instacrawler-privateapi](https://github.com/simonseo/instagram-hashtag-crawler)
+Uses [instaloader](https://instaloader.github.io/) under the hood.
 
 ## Installation
-First install [Instagram Private API](https://github.com/ping/instagram_private_api). Kudos for a great project!
-```
-$ pip install git+https://github.com/ping/instagram_private_api.git
+
+```bash
+pip install .
 ```
 
-Now run `__init__.py`. It'll provide you with the command options. If this shows up, everything probably works
-```
-$ python __init__.py
-usage: __init__.py [-h] -u USERNAME -p PASSWORD [-f TARGETFILE] [-t TARGET]
+With browser cookie support (auto-extract session from Chrome, Firefox, etc.):
+
+```bash
+pip install ".[browser]"
 ```
 
-## Get Crawlin'
-To get crawlin', you need to provide your Instagram username and password, and either an Instagram Hashtag without the hash (target) or a text file of the hashtags in each row (targetfile).
-Wait a bit and a folder will be made with all the hashtags crawled.
+For development:
 
-## Options
-Inside `__init__.py`, there is a config dictionary. Each config option is explained in the comments.
-Note that `min_collect_media` and `max_collect_media` is trumped if `min_timestamp` is provided as a number.
+```bash
+pip install -e ".[dev,browser]"
 ```
-config = {
-	'profile_path' : './hashtags',                          # Path where output data gets saved
-	'min_collect_media' : 1,                                # how many media items to be collected per hashtag. If time is specified, this is ignored
-	'max_collect_media' : 2000,                             # how many media items to be collected per hashtag. If time is specified, this is ignored
-	# 'min_timestamp' : int(time() - 60*60*24*30*2)           # up to how recent you want the posts to be in seconds. If you do not want to use this, put None as value
-	'min_timestamp' : None
-}
+
+## Usage
+
+### Crawl hashtags
+
+```bash
+# Using browser cookies (recommended — auto-extracts session from your browser)
+instagram-hashtag-crawler --browser chrome -t foodporn
+
+# If logged in on a non-default Chrome profile, specify the cookie file
+instagram-hashtag-crawler --browser chrome \
+    --cookie-file ~/Library/Application\ Support/Google/Chrome/Profile\ 1/Cookies \
+    -t foodporn
+
+# Using username/password
+instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t foodporn
+
+# Multiple hashtags from a file
+instagram-hashtag-crawler --browser chrome -f targets.txt
+
+# With options
+instagram-hashtag-crawler --browser chrome -t foodporn \
+    --max-posts 500 \
+    --output-dir ./data \
+    -v
 ```
+
+### Multi-hashtag AND search
+
+Pass `-t` multiple times to find posts that contain **all** specified hashtags:
+
+```bash
+# Posts tagged with BOTH #foodporn AND #pizza
+instagram-hashtag-crawler --browser chrome -t foodporn -t pizza
+
+# Three-way AND
+instagram-hashtag-crawler --browser chrome -t food -t pizza -t italy
+```
+
+Output is saved as `food_AND_pizza.json` (tags sorted alphabetically, joined by `_AND_`).
+
+You can also run it as a module:
+
+```bash
+python -m instagram_hashtag_crawler --browser chrome -t foodporn
+```
+
+### Export to CSV
+
+```bash
+instagram-hashtag-export --json-dir ./hashtags --csv-dir ./output
+```
+
+### Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--browser` | Auto-extract session from browser (chrome, firefox, safari, edge, brave, etc.) | — |
+| `--cookie-file` | Path to browser cookie file (for non-default profiles) | — |
+| `-u`, `--username` | Instagram username (not needed with `--browser`) | — |
+| `-p`, `--password` | Instagram password (not needed with `--browser`) | — |
+| `-t`, `--target` | Hashtag to crawl (without `#`). Repeat for AND search. | — |
+| `-f`, `--targetfile` | File with hashtags, one per line | — |
+| `--output-dir` | Directory for JSON output | `./hashtags` |
+| `--max-posts` | Max posts per hashtag | `100` |
+| `--min-posts` | Min posts required | `1` |
+| `--since` | Unix timestamp — only collect newer posts | — |
+| `--session-file` | Path to save/load session (with `-u`/`-p`) | — |
+| `-v`, `--verbose` | Debug logging | off |
+
+### Target file format
+
+One hashtag per line, no `#` prefix:
+
+```
+delicious
+dish
+foodpornography
+```
+
+See [`examples/targets.txt`](examples/targets.txt) for a sample.
+
+## Output
+
+Each hashtag produces a JSON file in the output directory:
+
+```
+hashtags/
+  delicious.json
+  dish.json
+  food_AND_pizza.json   # multi-hashtag AND result
+```
+
+Each JSON file contains an array of post objects with fields like `shortcode`, `user_id`, `username`, `like_count`, `comment_count`, `caption`, `tags`, `pic_url`, `date`, and profile metadata.
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev,browser]"
+
+# Lint
+ruff check src/ tests/
+ruff format --check src/ tests/
+
+# Test
+pytest
+
+# Pre-commit hooks
+pre-commit install
+```
+
+## Requirements
+
+- Python 3.10+
+- An Instagram account (no developer/API access needed)
+
+## License
+
+MIT
