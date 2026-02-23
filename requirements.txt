@@ -1,1 +1,0 @@
-instagram-private-api==1.5.5
