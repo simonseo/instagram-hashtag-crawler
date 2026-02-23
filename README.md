@@ -5,14 +5,19 @@ Crawl Instagram hashtags and collect post metadata (likes, comments, captions, u
 Uses [instaloader](https://instaloader.github.io/) under the hood.
 
 ## Installation
-
 ```bash
-pip install .
+# Install directly from GitHub
+pip install git+https://github.com/simonseo/instagram-hashtag-crawler.git
+
+# With browser cookie support (auto-extract session from Chrome, Firefox, etc.)
+pip install "instagram-hashtag-crawler[browser] @ git+https://github.com/simonseo/instagram-hashtag-crawler.git"
 ```
 
-With browser cookie support (auto-extract session from Chrome, Firefox, etc.):
+Or clone and install locally:
 
 ```bash
+git clone https://github.com/simonseo/instagram-hashtag-crawler.git
+cd instagram-hashtag-crawler
 pip install ".[browser]"
 ```
 
