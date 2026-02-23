@@ -35,6 +35,20 @@ instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t foodporn \
     -v
 ```
 
+### Multi-hashtag AND search
+
+Pass `-t` multiple times to find posts that contain **all** specified hashtags:
+
+```bash
+# Posts tagged with BOTH #foodporn AND #pizza
+instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t foodporn -t pizza
+
+# Three-way AND
+instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t food -t pizza -t italy
+```
+
+Output is saved as `food_AND_pizza.json` (tags sorted alphabetically, joined by `_AND_`).
+
 You can also run it as a module:
 
 ```bash
@@ -53,7 +67,7 @@ instagram-hashtag-export --json-dir ./hashtags --csv-dir ./output
 |------|-------------|---------|
 | `-u`, `--username` | Instagram username | (required) |
 | `-p`, `--password` | Instagram password | (required) |
-| `-t`, `--target` | Single hashtag (without `#`) | — |
+| `-t`, `--target` | Hashtag to crawl (without `#`). Repeat for AND search. | — |
 | `-f`, `--targetfile` | File with hashtags, one per line | — |
 | `--output-dir` | Directory for JSON output | `./hashtags` |
 | `--max-posts` | Max posts per hashtag | `100` |
@@ -82,9 +96,10 @@ Each hashtag produces a JSON file in the output directory:
 hashtags/
   delicious.json
   dish.json
+  food_AND_pizza.json   # multi-hashtag AND result
 ```
 
-Each JSON file contains an array of post objects with fields like `user_id`, `username`, `like_count`, `comment_count`, `caption`, `tags`, `pic_url`, `date`, and profile metadata.
+Each JSON file contains an array of post objects with fields like `shortcode`, `user_id`, `username`, `like_count`, `comment_count`, `caption`, `tags`, `pic_url`, `date`, and profile metadata.
 
 ## Development
 
