@@ -1,35 +1,113 @@
 # Instagram Hashtag Crawler
-[![HitCount](http://hits.dwyl.io/simonseo/instagram-hashtag-crawler.svg)](http://hits.dwyl.io/simonseo/instagram-hashtag-crawler)
 
-This crawler was made because most of the crawlers out there seems to either require a browser or a developer account. This Instagram crawler utilizes a private API of Instagram and thus no developer account is required.
+Crawl Instagram hashtags and collect post metadata (likes, comments, captions, user profiles) without a developer account.
 
-Refer to a similar script I wrote. It might be more helpful in terms of documentation: [simonseo/instacrawler-privateapi](https://github.com/simonseo/instagram-hashtag-crawler)
+Uses [instaloader](https://instaloader.github.io/) under the hood.
 
 ## Installation
-First install [Instagram Private API](https://github.com/ping/instagram_private_api). Kudos for a great project!
-```
-$ pip install git+https://github.com/ping/instagram_private_api.git
+
+```bash
+pip install .
 ```
 
-Now run `__init__.py`. It'll provide you with the command options. If this shows up, everything probably works
-```
-$ python __init__.py
-usage: __init__.py [-h] -u USERNAME -p PASSWORD [-f TARGETFILE] [-t TARGET]
+For development:
+
+```bash
+pip install -e ".[dev]"
 ```
 
-## Get Crawlin'
-To get crawlin', you need to provide your Instagram username and password, and either an Instagram Hashtag without the hash (target) or a text file of the hashtags in each row (targetfile).
-Wait a bit and a folder will be made with all the hashtags crawled.
+## Usage
 
-## Options
-Inside `__init__.py`, there is a config dictionary. Each config option is explained in the comments.
-Note that `min_collect_media` and `max_collect_media` is trumped if `min_timestamp` is provided as a number.
+### Crawl hashtags
+
+```bash
+# Single hashtag
+instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t foodporn
+
+# Multiple hashtags from a file
+instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -f targets.txt
+
+# With options
+instagram-hashtag-crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t foodporn \
+    --max-posts 500 \
+    --output-dir ./data \
+    --session-file session.dat \
+    -v
 ```
-config = {
-	'profile_path' : './hashtags',                          # Path where output data gets saved
-	'min_collect_media' : 1,                                # how many media items to be collected per hashtag. If time is specified, this is ignored
-	'max_collect_media' : 2000,                             # how many media items to be collected per hashtag. If time is specified, this is ignored
-	# 'min_timestamp' : int(time() - 60*60*24*30*2)           # up to how recent you want the posts to be in seconds. If you do not want to use this, put None as value
-	'min_timestamp' : None
-}
+
+You can also run it as a module:
+
+```bash
+python -m instagram_hashtag_crawler -u YOUR_USERNAME -p YOUR_PASSWORD -t foodporn
 ```
+
+### Export to CSV
+
+```bash
+instagram-hashtag-export --json-dir ./hashtags --csv-dir ./output
+```
+
+### Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-u`, `--username` | Instagram username | (required) |
+| `-p`, `--password` | Instagram password | (required) |
+| `-t`, `--target` | Single hashtag (without `#`) | — |
+| `-f`, `--targetfile` | File with hashtags, one per line | — |
+| `--output-dir` | Directory for JSON output | `./hashtags` |
+| `--max-posts` | Max posts per hashtag | `100` |
+| `--min-posts` | Min posts required | `1` |
+| `--since` | Unix timestamp — only collect newer posts | — |
+| `--session-file` | Path to save/load session | — |
+| `-v`, `--verbose` | Debug logging | off |
+
+### Target file format
+
+One hashtag per line, no `#` prefix:
+
+```
+delicious
+dish
+foodpornography
+```
+
+See [`examples/targets.txt`](examples/targets.txt) for a sample.
+
+## Output
+
+Each hashtag produces a JSON file in the output directory:
+
+```
+hashtags/
+  delicious.json
+  dish.json
+```
+
+Each JSON file contains an array of post objects with fields like `user_id`, `username`, `like_count`, `comment_count`, `caption`, `tags`, `pic_url`, `date`, and profile metadata.
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Lint
+ruff check src/ tests/
+ruff format --check src/ tests/
+
+# Test
+pytest
+
+# Pre-commit hooks
+pre-commit install
+```
+
+## Requirements
+
+- Python 3.10+
+- An Instagram account (no developer/API access needed)
+
+## License
+
+MIT
