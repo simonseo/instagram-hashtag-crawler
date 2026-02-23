@@ -44,7 +44,11 @@ def test_cookiejar_to_dict_converts() -> None:
 
 
 def test_get_browser_cookies_unsupported_browser() -> None:
-    with pytest.raises(ValueError, match="Unsupported browser"):
+    mock_bc3 = MagicMock()
+    with (
+        patch.dict("sys.modules", {"browser_cookie3": mock_bc3}),
+        pytest.raises(ValueError, match="Unsupported browser"),
+    ):
         _get_browser_cookies("netscape")
 
 
