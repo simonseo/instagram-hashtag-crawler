@@ -57,7 +57,7 @@ def _fake_profile() -> MagicMock:
 def _fake_hashtag_obj(posts: list[MagicMock], mediacount: int = 999) -> MagicMock:
     ht = MagicMock()
     ht.mediacount = mediacount
-    ht.get_posts.return_value = iter(posts)
+    ht.get_posts_resumable.return_value = iter(posts)
     return ht
 
 

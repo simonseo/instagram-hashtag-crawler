@@ -51,7 +51,7 @@ def _collect_posts(
     seen_shortcodes: set[str] = set()
     skipped = 0
 
-    for post in hashtag_obj.get_posts():
+    for post in hashtag_obj.get_posts_resumable():
         if len(posts) >= config.max_posts:
             break
 
@@ -207,11 +207,11 @@ def _process_post(
             "caption": post.caption or "",
             "tags": [f"#{tag}" for tag in post.caption_hashtags],
         }
-    except instaloader.ConnectionException as exc:
-        logger.warning("Connection error processing post %s: %s", post.shortcode, exc)
-        return None
     except instaloader.QueryReturnedNotFoundException:
         logger.warning("Post %s or its owner no longer exists", post.shortcode)
+        return None
+    except instaloader.ConnectionException as exc:
+        logger.warning("Connection error processing post %s: %s", post.shortcode, exc)
         return None
 
 
