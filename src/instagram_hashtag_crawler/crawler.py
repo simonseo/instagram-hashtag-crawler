@@ -24,20 +24,31 @@ class CrawlConfig:
     min_timestamp: datetime | None = None
 
 
-def crawl(
+def _collect_posts(
     loader: instaloader.Instaloader,
     hashtag: str,
     config: CrawlConfig,
-) -> bool:
-    """Crawl a single hashtag and save results as JSON.
+    profile_cache: dict[int, Profile] | None = None,
+    *,
+    required_tags: frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Collect posts from a single hashtag, returning them as a list.
 
-    Returns True if enough posts were collected, False otherwise.
+    If *required_tags* is given, only posts whose caption contains **all**
+    of the specified hashtags (case-insensitive, without ``#``) are kept.
+    This enables efficient AND filtering: query one hashtag via the API
+    and check the caption for the remaining tags.
+
+    Posts are deduplicated by shortcode within a single call.
     """
+    if profile_cache is None:
+        profile_cache = {}
+
     hashtag_obj = Hashtag.from_name(loader.context, hashtag)
     logger.info("Hashtag #%s has %d total posts", hashtag, hashtag_obj.mediacount)
 
-    profile_cache: dict[int, Profile] = {}
     posts: list[dict[str, Any]] = []
+    seen_shortcodes: set[str] = set()
     skipped = 0
 
     for post in hashtag_obj.get_posts():
@@ -57,6 +68,18 @@ def crawl(
             skipped += 1
             continue
 
+        # Deduplicate by shortcode
+        if post.shortcode in seen_shortcodes:
+            continue
+        seen_shortcodes.add(post.shortcode)
+
+        # AND filter: check caption contains all required tags
+        if required_tags is not None:
+            caption_tags = frozenset(post.caption_hashtags)  # lowercase, no #
+            if not required_tags <= caption_tags:
+                skipped += 1
+                continue
+
         processed = _process_post(loader, post, profile_cache)
         if processed is not None:
             posts.append(processed)
@@ -64,22 +87,96 @@ def crawl(
                 logger.info("Collected %d posts so far...", len(posts))
 
     logger.info(
-        "Collected %d posts for #%s (skipped %d non-image)",
+        "Collected %d posts for #%s (skipped %d)",
         len(posts),
         hashtag,
         skipped,
     )
+    return posts
+
+
+def crawl(
+    loader: instaloader.Instaloader,
+    hashtag: str,
+    config: CrawlConfig,
+) -> bool:
+    """Crawl a single hashtag and save results as JSON.
+
+    Returns True if enough posts were collected, False otherwise.
+    """
+    posts = _collect_posts(loader, hashtag, config)
 
     if len(posts) < config.min_posts:
         return False
 
-    # Save processed results
+    _save_posts(posts, config.output_dir / f"{hashtag}.json")
+    return True
+
+
+def crawl_multi_and(
+    loader: instaloader.Instaloader,
+    hashtags: list[str],
+    config: CrawlConfig,
+) -> bool:
+    """Crawl posts that contain ALL given hashtags (AND logic).
+
+    Strategy: query each hashtag via the API and keep only posts whose
+    caption contains **every** tag in *hashtags*.  We start with all
+    hashtags because Instagram's API returns different post sets for
+    each hashtag — a post tagged with both ``#food`` and ``#pizza``
+    may appear in the ``#pizza`` feed but be buried far down in the
+    ``#food`` feed.  By querying each hashtag and filtering the caption,
+    we maximise the chance of finding matching posts.
+
+    Duplicate posts (same shortcode) across queries are merged so the
+    final output contains unique posts only.
+
+    Returns True if at least *config.min_posts* were found.
+    """
+    if len(hashtags) < 2:
+        msg = "crawl_multi_and requires at least 2 hashtags"
+        raise ValueError(msg)
+
+    required_tags = frozenset(tag.lower() for tag in hashtags)
+    profile_cache: dict[int, Profile] = {}
+    merged: dict[str, dict[str, Any]] = {}
+
+    for hashtag in hashtags:
+        logger.info("AND search: querying #%s (require all of %s)", hashtag, sorted(required_tags))
+        posts = _collect_posts(
+            loader,
+            hashtag,
+            config,
+            profile_cache,
+            required_tags=required_tags,
+        )
+        for post in posts:
+            merged.setdefault(post["shortcode"], post)
+
+        if len(merged) >= config.max_posts:
+            break
+
+    all_posts = list(merged.values())[: config.max_posts]
+
+    logger.info(
+        "AND search for %s: found %d unique posts",
+        " + ".join(f"#{h}" for h in hashtags),
+        len(all_posts),
+    )
+
+    if len(all_posts) < config.min_posts:
+        return False
+
+    filename = "_AND_".join(sorted(hashtags)) + ".json"
+    _save_posts(all_posts, config.output_dir / filename)
+    return True
+
+
+def _save_posts(posts: list[dict[str, Any]], output_file: Path) -> None:
+    """Write posts to a JSON file."""
     output = {"posts": posts}
-    output_file = config.output_dir / f"{hashtag}.json"
     output_file.write_text(json.dumps(output, indent=2, default=str))
     logger.info("Saved %d posts to %s", len(posts), output_file)
-
-    return True
 
 
 def _process_post(
@@ -95,6 +192,7 @@ def _process_post(
         profile = _get_profile(loader, post, profile_cache)
 
         return {
+            "shortcode": post.shortcode,
             "user_id": post.owner_id,
             "username": profile.username,
             "full_name": profile.full_name,
