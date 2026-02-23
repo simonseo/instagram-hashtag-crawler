@@ -64,6 +64,7 @@ def _write_posts(data: dict[str, Any], writer: csv.writer) -> None:
             continue
 
         row = [
+            post.get("shortcode", ""),
             str(post.get("pic_url", "")),
             post.get("like_count", 0),
             post.get("username", ""),

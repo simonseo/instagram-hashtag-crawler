@@ -51,7 +51,7 @@ def test_read_profiles_basic(tmp_path: Path) -> None:
 
     rows = _read_csv(csv_dir / "posts.csv")
     assert len(rows) == 1
-    assert rows[0][2] == "old_user"  # username column
+    assert rows[0][3] == "old_user"  # username column
 
 
 def test_read_profiles_empty_json(tmp_path: Path) -> None:
@@ -114,5 +114,5 @@ def test_read_profiles_multiple_files(tmp_path: Path) -> None:
     rows = _read_csv(csv_dir / "posts.csv")
     assert len(rows) == 2
     # alpha.json sorts before beta.json
-    assert rows[0][2] == "alpha_user"
-    assert rows[1][2] == "beta_user"
+    assert rows[0][3] == "alpha_user"
+    assert rows[1][3] == "beta_user"

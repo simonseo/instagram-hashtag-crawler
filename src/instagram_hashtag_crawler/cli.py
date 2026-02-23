@@ -7,7 +7,7 @@ from pathlib import Path
 
 import instaloader
 
-from instagram_hashtag_crawler.crawler import CrawlConfig, crawl
+from instagram_hashtag_crawler.crawler import CrawlConfig, crawl, crawl_multi_and
 from instagram_hashtag_crawler.utils import file_to_list
 
 logger = logging.getLogger(__name__)
@@ -20,8 +20,22 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("-u", "--username", required=True, help="Instagram username")
     parser.add_argument("-p", "--password", required=True, help="Instagram password")
-    parser.add_argument("-t", "--target", help="Single hashtag to crawl (without #)")
-    parser.add_argument("-f", "--targetfile", help="Path to file with hashtags (one per line)")
+    parser.add_argument(
+        "-t",
+        "--target",
+        action="append",
+        default=None,
+        dest="targets",
+        help=(
+            "Hashtag to crawl (without #). Can be specified multiple times "
+            "for AND search: -t foodporn -t pizza finds posts with BOTH tags."
+        ),
+    )
+    parser.add_argument(
+        "-f",
+        "--targetfile",
+        help="Path to file with hashtags (one per line) — crawls each independently",
+    )
     parser.add_argument(
         "--output-dir",
         default="./hashtags",
@@ -104,15 +118,21 @@ def main(argv: list[str] | None = None) -> None:
     _setup_logging(args.verbose)
 
     # Resolve targets
-    if args.target:
-        hashtags = [args.target]
+    multi_and = False
+    if args.targets:
+        hashtags = args.targets
+        if len(hashtags) > 1:
+            multi_and = True
     elif args.targetfile:
         hashtags = file_to_list(args.targetfile)
     else:
         logger.error("Provide a hashtag with -t or a file of hashtags with -f")
         sys.exit(1)
 
-    logger.info("Targets: %s", hashtags)
+    if multi_and:
+        logger.info("AND search for: %s", " + ".join(f"#{h}" for h in hashtags))
+    else:
+        logger.info("Targets: %s", hashtags)
 
     # Initialize instaloader and login
     loader = instaloader.Instaloader(
@@ -152,7 +172,25 @@ def main(argv: list[str] | None = None) -> None:
 
     config.output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Crawl each hashtag
+    # Multi-tag AND search
+    if multi_and:
+        try:
+            success = crawl_multi_and(loader, hashtags, config)
+            if success:
+                logger.info(
+                    "Finished AND search for %s",
+                    " + ".join(f"#{h}" for h in hashtags),
+                )
+            else:
+                logger.warning("Insufficient posts matching all tags")
+        except KeyboardInterrupt:
+            logger.info("Interrupted by user")
+            sys.exit(130)
+        except instaloader.QueryReturnedNotFoundException as exc:
+            logger.warning("Hashtag not found: %s", exc)
+        return
+
+    # Single-tag or file-based independent crawls
     for hashtag in hashtags:
         logger.info("Crawling #%s", hashtag)
         try:
